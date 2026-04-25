@@ -298,14 +298,14 @@ export const IntegratedFlightPlanning = () => {
               Route Weather
             </h3>
             {[currentFlightPlan?.departure, currentFlightPlan?.destination].filter(Boolean).map(airport => {
-              const wd = weatherData[airport!];
+              const wd = weatherData instanceof Map ? weatherData.get(airport!) : weatherData[airport!];
               if (!wd) return null;
               return (
                 <div key={airport} className="p-5 bg-muted/30 rounded-xl space-y-3">
                   <div className="flex items-center justify-between">
                     <h4 className="font-semibold text-foreground">{airport}</h4>
-                    <Badge variant="outline" className={`rounded-full text-xs ${wd.flightRules === 'VFR' ? 'border-success/40 text-success' : 'border-destructive/40 text-destructive'}`}>
-                      {wd.flightRules}
+                    <Badge variant="outline" className={`rounded-full text-xs ${wd.flightRules === 'VFR' || wd.conditions === 'VFR' ? 'border-success/40 text-success' : 'border-destructive/40 text-destructive'}`}>
+                      {wd.flightRules || wd.conditions}
                     </Badge>
                   </div>
                   <div className="font-mono text-[11px] bg-background/60 p-2.5 rounded-lg text-foreground/80">{wd.metar}</div>
