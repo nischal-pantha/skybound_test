@@ -65,16 +65,17 @@ function AppRoutes() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <NotificationProvider>
-        <AppProvider>
-          <ErrorBoundary>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <NotificationProvider>
+          <AppProvider>
             <AppRoutes />
-          </ErrorBoundary>
-        </AppProvider>
-      </NotificationProvider>
-    </QueryClientProvider>
+          </AppProvider>
+        </NotificationProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
+
 
 export default App;
