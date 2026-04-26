@@ -1,0 +1,68 @@
+type User @table {
+  displayName: String!
+  email: String!
+  createdAt: Timestamp!
+  photoUrl: String
+  licenseNumber: String
+  totalFlightHours: Float
+}
+
+type Aircraft @table {
+  tailNumber: String!
+  make: String!
+  model: String!
+  type: String!
+  createdAt: Timestamp!
+  maxGrossWeight: Float
+  emptyWeight: Float
+  usefulLoad: Float
+  fuelCapacity: Float
+  owner: User
+}
+
+type FlightPlan @table {
+  departureAirport: String!
+  destinationAirport: String!
+  plannedDepartureTime: Timestamp!
+  plannedArrivalTime: Timestamp!
+  createdAt: Timestamp!
+  waypoints: [String]
+  altitude: Int
+  airspeed: Int
+  routeDescription: String
+  fuelPlanned: Float
+  planner: User
+  aircraft: Aircraft
+}
+
+type FlightLogEntry @table {
+  flightDate: Date!
+  duration: Float!
+  departureAirport: String!
+  destinationAirport: String!
+  createdAt: Timestamp!
+  routeFlown: String
+  remarks: String
+  pilotInCommand: String
+  crossCountryHours: Float
+  instrumentHours: Float
+  landings: Int
+  pilot: User
+  aircraft: Aircraft
+  flightPlan: FlightPlan
+}
+
+type WeightAndBalance @table {
+  calculationDate: Date!
+  totalWeight: Float!
+  centerOfGravity: Float!
+  createdAt: Timestamp!
+  pilotWeight: Float
+  passengerWeight: Float
+  baggageWeight: Float
+  fuelWeight: Float
+  fuelArm: Float
+  calculator: User
+  aircraft: Aircraft
+  flightPlan: FlightPlan
+}

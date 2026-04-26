@@ -1,0 +1,57 @@
+query AllAircrafts @auth(level: USER, insecureReason: "This operation is safe to expose to all logged in users.") {
+  aircrafts {
+    tailNumber
+    make
+    model
+    type
+    maxGrossWeight
+    emptyWeight
+    usefulLoad
+    fuelCapacity
+    owner {
+      displayName
+      email
+    }
+  }
+}
+
+query MyFlightLogEntries @auth(level: USER) {
+  flightLogEntries(where: {pilotId: {eq_expr: "auth.uid"}}) {
+    flightDate
+    duration
+    departureAirport
+    destinationAirport
+    aircraft {
+      tailNumber
+      make
+    }
+    pilotInCommand
+  }
+}
+
+mutation CreateFlightPlan($departureAirport: String!, $destinationAirport: String!, $plannedDepartureTime: Timestamp!, $plannedArrivalTime: Timestamp!, $aircraftId: UUID!) @auth(level: USER) {
+  flightPlan_insert(data: {
+    departureAirport: $departureAirport,
+    destinationAirport: $destinationAirport,
+    plannedDepartureTime: $plannedDepartureTime,
+    plannedArrivalTime: $plannedArrivalTime,
+    aircraftId: $aircraftId,
+    plannerId_expr: "auth.uid",
+    createdAt_expr: "request.time"
+  }) {
+    id
+  }
+}
+
+query AircraftWeightAndBalance($aircraftId: UUID!) @auth(level: USER) {
+  weightAndBalances(where: {aircraftId: {eq: $aircraftId}}) {
+    calculationDate
+    totalWeight
+    centerOfGravity
+    pilotWeight
+    passengerWeight
+    baggageWeight
+    fuelWeight
+    fuelArm
+  }
+}

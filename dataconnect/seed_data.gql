@@ -1,0 +1,158 @@
+mutation CreateSeedData @transaction @auth(level: USER, insecureReason: "Seed data can be created by any authenticated user for testing purposes.") {
+  user_upsertMany(
+    data: [
+      {
+        id: "d9e8c7b6-5a43-2e1d-0c9b-8a7f6e5d4c32",
+        displayName: "Pilot Pete",
+        email: "pete@example.com",
+        createdAt: "2023-01-01T10:00:00Z",
+        licenseNumber: "ABC12345",
+        totalFlightHours: 1500.5
+      },
+      {
+        id: "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+        displayName: "Admin Amy",
+        email: "amy@example.com",
+        createdAt: "2023-01-02T11:00:00Z",
+        licenseNumber: "XYZ98765",
+        totalFlightHours: 200.0
+      }
+    ]
+  )
+  aircraft_upsertMany(
+    data: [
+      {
+        id: "f1e2d3c4-b5a6-9870-6543-210fedcba987",
+        tailNumber: "N12345",
+        make: "Cessna",
+        model: "172 Skyhawk",
+        type: "Single-Engine Piston",
+        createdAt: "2023-01-03T12:00:00Z",
+        maxGrossWeight: 2300,
+        emptyWeight: 1500,
+        usefulLoad: 800,
+        fuelCapacity: 56,
+        ownerId: "d9e8c7b6-5a43-2e1d-0c9b-8a7f6e5d4c32"
+      },
+      {
+        id: "cba98765-4321-0fed-cba9-876543210fed",
+        tailNumber: "N54321",
+        make: "Piper",
+        model: "Cherokee 140",
+        type: "Single-Engine Piston",
+        createdAt: "2023-01-04T13:00:00Z",
+        maxGrossWeight: 2150,
+        emptyWeight: 1350,
+        usefulLoad: 800,
+        fuelCapacity: 48,
+        ownerId: "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+      }
+    ]
+  )
+  flightPlan_upsertMany(
+    data: [
+      {
+        id: "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
+        departureAirport: "KSQL",
+        destinationAirport: "KPAO",
+        plannedDepartureTime: "2023-10-26T09:00:00Z",
+        plannedArrivalTime: "2023-10-26T09:30:00Z",
+        createdAt: "2023-10-25T15:00:00Z",
+        waypoints: ["SUNNYVALE"],
+        altitude: 2500,
+        airspeed: 100,
+        routeDescription: "Direct",
+        fuelPlanned: 10,
+        plannerId: "d9e8c7b6-5a43-2e1d-0c9b-8a7f6e5d4c32",
+        aircraftId: "f1e2d3c4-b5a6-9870-6543-210fedcba987"
+      },
+      {
+        id: "7e8f9a0b-1c2d-3e4f-5a6b-7c8d9e0f1a2b",
+        departureAirport: "KPAO",
+        destinationAirport: "KSQL",
+        plannedDepartureTime: "2023-10-26T10:00:00Z",
+        plannedArrivalTime: "2023-10-26T10:30:00Z",
+        createdAt: "2023-10-25T16:00:00Z",
+        waypoints: ["PALO ALTO"],
+        altitude: 2500,
+        airspeed: 100,
+        routeDescription: "Direct",
+        fuelPlanned: 10,
+        plannerId: "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+        aircraftId: "cba98765-4321-0fed-cba9-876543210fed"
+      }
+    ]
+  )
+  flightLogEntry_upsertMany(
+    data: [
+      {
+        id: "9f8e7d6c-5b4a-3f2e-1d0c-9b8a7f6e5d4c",
+        flightDate: "2023-10-26",
+        duration: 0.5,
+        departureAirport: "KSQL",
+        destinationAirport: "KPAO",
+        createdAt: "2023-10-26T09:35:00Z",
+        routeFlown: "Direct",
+        remarks: "Smooth flight",
+        pilotInCommand: "Pilot Pete",
+        crossCountryHours: 0.0,
+        instrumentHours: 0.0,
+        landings: 1,
+        pilotId: "d9e8c7b6-5a43-2e1d-0c9b-8a7f6e5d4c32",
+        aircraftId: "f1e2d3c4-b5a6-9870-6543-210fedcba987",
+        flightPlanId: "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d"
+      },
+      {
+        id: "2d1e0f9a-8b7c-6d5e-4f3a-2b1c0d9e8f7a",
+        flightDate: "2023-10-26",
+        duration: 0.5,
+        departureAirport: "KPAO",
+        destinationAirport: "KSQL",
+        createdAt: "2023-10-26T10:35:00Z",
+        routeFlown: "Direct",
+        remarks: "Good conditions",
+        pilotInCommand: "Admin Amy",
+        crossCountryHours: 0.0,
+        instrumentHours: 0.0,
+        landings: 1,
+        pilotId: "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+        aircraftId: "cba98765-4321-0fed-cba9-876543210fed",
+        flightPlanId: "7e8f9a0b-1c2d-3e4f-5a6b-7c8d9e0f1a2b"
+      }
+    ]
+  )
+  weightAndBalance_upsertMany(
+    data: [
+      {
+        id: "3c2b1a0d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+        calculationDate: "2023-10-26",
+        totalWeight: 2200,
+        centerOfGravity: 90,
+        createdAt: "2023-10-26T08:45:00Z",
+        pilotWeight: 180,
+        passengerWeight: 0,
+        baggageWeight: 50,
+        fuelWeight: 200,
+        fuelArm: 48,
+        calculatorId: "d9e8c7b6-5a43-2e1d-0c9b-8a7f6e5d4c32",
+        aircraftId: "f1e2d3c4-b5a6-9870-6543-210fedcba987",
+        flightPlanId: "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d"
+      },
+      {
+        id: "8g7h6i5j-4k3l-2m1n-0o9p-8q7r6s5t4u3v",
+        calculationDate: "2023-10-26",
+        totalWeight: 2000,
+        centerOfGravity: 88,
+        createdAt: "2023-10-26T09:45:00Z",
+        pilotWeight: 160,
+        passengerWeight: 150,
+        baggageWeight: 30,
+        fuelWeight: 180,
+        fuelArm: 45,
+        calculatorId: "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+        aircraftId: "cba98765-4321-0fed-cba9-876543210fed",
+        flightPlanId: "7e8f9a0b-1c2d-3e4f-5a6b-7c8d9e0f1a2b"
+      }
+    ]
+  )
+}
