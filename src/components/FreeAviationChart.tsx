@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,11 +10,22 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
-import { Plane, MapPin, Navigation, ZoomIn, ZoomOut, Layers, Shield, AlertTriangle, Map, Locate, LocateFixed, Search } from 'lucide-react';
+import { Plane, MapPin, Navigation, ZoomIn, ZoomOut, Layers, Shield, AlertTriangle, Map as MapIcon, Locate, LocateFixed, Search, Radar } from 'lucide-react';
 import { toast } from 'sonner';
 import { useGPSLocation } from '@/hooks/useGPSLocation';
 import { useAviationMap, type ChartType, type BaseMapStyle, type Waypoint } from '@/hooks/useAviationMap';
 import { EnhancedNavigationSearch, type SearchResult } from '@/components/chart/EnhancedNavigationSearch';
+
+interface TrafficAircraft {
+  id: string;
+  callsign: string;
+  lat: number;
+  lng: number;
+  altitude: number;
+  heading: number;
+  speed: number;
+  type: string;
+}
 
 interface FreeAviationChartProps {
   waypoints?: Waypoint[];
@@ -55,6 +67,7 @@ const FreeAviationChart = ({
   const [chartTypeState, setChartTypeState] = useState<ChartType>('sectional');
   const [baseMapStyle, setBaseMapStyle] = useState<BaseMapStyle>('streets');
   const [chartOpacity, setChartOpacityState] = useState(0.8);
+  const [openaipApiKey, setOpenaipApiKey] = useState(localStorage.getItem('openaip_key') || '');
 
   // Overlays
   const [showAirspace, setShowAirspace] = useState(true);
@@ -63,6 +76,11 @@ const FreeAviationChart = ({
   const [showClassD, setShowClassD] = useState(true);
   const [showTFRs, setShowTFRs] = useState(true);
   const [showAirports, setShowAirports] = useState(true);
+  const [showTraffic, setShowTraffic] = useState(true);
+
+  // Traffic state
+  const [traffic, setTraffic] = useState<TrafficAircraft[]>([]);
+  const trafficMarkersRef = useRef<Map<string, L.Marker>>(new Map());
 
   // Waypoint dialog
   const [isAddingWaypoint, setIsAddingWaypoint] = useState(false);
@@ -83,9 +101,9 @@ const FreeAviationChart = ({
       : [37.5, -122.2] as [number, number];
 
     try {
-      const map = initMap(mapContainer.current, center, waypoints.length > 0 ? 8 : 7);
+      const map = initMap(mapContainer.current, center, waypoints.length > 0 ? 11 : 10);
       setBaseLayer(baseMapStyle);
-      setChartLayer(chartType, chartOpacity);
+      setChartLayer(chartType, chartOpacity, openaipApiKey);
       renderAirspace(showAirspace, showClassB, showClassC, showClassD);
       renderTFRs(showTFRs);
       renderAirports(showAirports);
@@ -111,8 +129,8 @@ const FreeAviationChart = ({
   }, [baseMapStyle, setBaseLayer]);
 
   useEffect(() => {
-    setChartLayer(chartType, chartOpacity);
-  }, [chartType, chartOpacity, setChartLayer]);
+    setChartLayer(chartType, chartOpacity, openaipApiKey);
+  }, [chartType, chartOpacity, openaipApiKey, setChartLayer]);
 
   useEffect(() => {
     setChartOpacity(chartOpacity);
@@ -133,6 +151,117 @@ const FreeAviationChart = ({
   useEffect(() => {
     renderWaypoints(waypoints);
   }, [waypoints, renderWaypoints]);
+
+  // Real-time Traffic from OpenSky Network API
+  useEffect(() => {
+    if (!showTraffic || !mapRef.current) {
+      trafficMarkersRef.current.forEach(m => m.remove());
+      trafficMarkersRef.current.clear();
+      return;
+    }
+
+    const fetchTraffic = async () => {
+      try {
+        // San Francisco Bay Area bounding box
+        const lamin = 36.5;
+        const lomin = -123.5;
+        const lamax = 38.5;
+        const lomax = -121.0;
+        
+        const response = await fetch(
+          `https://opensky-network.org/api/states/all?lamin=${lamin}&lomin=${lomin}&lamax=${lamax}&lomax=${lomax}`
+        );
+        
+        if (!response.ok) throw new Error('OpenSky API error');
+        
+        const data = await response.json();
+        if (!data.states) return;
+
+        const liveTraffic: TrafficAircraft[] = data.states.map((s: any) => ({
+          id: s[0], // icao24
+          callsign: (s[1] || 'UNK').trim(),
+          lng: s[5],
+          lat: s[6],
+          altitude: s[7] ? s[7] * 3.281 : 0, // meters to feet
+          speed: s[9] ? s[9] * 1.944 : 0, // m/s to knots
+          heading: s[10] || 0, // true track
+          type: 'Live', // OpenSky doesn't provide type in the states call
+        })).filter((ac: TrafficAircraft) => ac.lat && ac.lng);
+
+        setTraffic(liveTraffic);
+      } catch (err) {
+        console.error('Failed to fetch live traffic:', err);
+        // Fallback to simulated traffic if API fails (rate limited or down)
+        if (traffic.length === 0) {
+          const fallbackTraffic: TrafficAircraft[] = [
+            { id: 'sim-1', callsign: 'N12345', lat: 37.52, lng: -122.15, altitude: 4500, heading: 45, speed: 110, type: 'Sim' },
+            { id: 'sim-2', callsign: 'UAL456', lat: 37.65, lng: -122.35, altitude: 12000, heading: 270, speed: 380, type: 'Sim' },
+          ];
+          setTraffic(fallbackTraffic);
+        }
+      }
+    };
+
+    fetchTraffic();
+    const interval = setInterval(fetchTraffic, 10000); // Fetch every 10 seconds
+
+    return () => clearInterval(interval);
+  }, [showTraffic, mapRef]);
+
+  // Update Traffic Markers
+  useEffect(() => {
+    if (!mapRef.current || !showTraffic) return;
+
+    traffic.forEach(ac => {
+      let marker = trafficMarkersRef.current.get(ac.id);
+      
+      const trafficIcon = L.divIcon({
+        className: 'traffic-marker',
+        html: `
+          <div style="position: relative; width: 40px; height: 40px; transform: rotate(${ac.heading}deg);">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="hsl(var(--primary))" stroke="white" stroke-width="1.5">
+              <path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3-.5-4.5.5L13 7 4.8 5.2c-.3-.1-.6 0-.8.3l-.6.6c-.2.2-.2.5-.1.7l7.4 3.5-2.8 2.8-2.2-.6c-.3-.1-.6 0-.8.2l-.5.5c-.2.2-.2.5 0 .7l2.1 2.1.2 3.1c0 .3.2.5.5.5h.5c.2 0 .5-.1.6-.3l2.8-2.8 3.5 7.4c.1.2.4.3.7.1l.6-.6c.3-.2.4-.5.3-.8z"/>
+            </svg>
+          </div>
+          <div style="position: absolute; top: 24px; left: 50%; transform: translateX(-50%); 
+            background: rgba(0,0,0,0.7); color: white; padding: 1px 4px; border-radius: 3px; 
+            font-size: 9px; font-weight: bold; white-space: nowrap; pointer-events: none; z-index: 1000;">
+            ${ac.callsign}<br/>${Math.round(ac.altitude / 100)}
+          </div>
+        `,
+        iconSize: [40, 40],
+        iconAnchor: [20, 20],
+      });
+
+      if (marker) {
+        marker.setLatLng([ac.lat, ac.lng]);
+        marker.setIcon(trafficIcon);
+      } else {
+        marker = L.marker([ac.lat, ac.lng], { icon: trafficIcon, zIndexOffset: 500 })
+          .addTo(mapRef.current!)
+          .bindPopup(`
+            <div class="p-2">
+              <div class="font-bold">${ac.callsign} (${ac.type})</div>
+              <div class="text-xs text-muted-foreground">
+                Altitude: ${Math.round(ac.altitude)} ft<br/>
+                Speed: ${Math.round(ac.speed)} kts<br/>
+                Heading: ${Math.round(ac.heading)}°
+              </div>
+            </div>
+          `);
+        trafficMarkersRef.current.set(ac.id, marker);
+      }
+    });
+
+    // Cleanup old traffic
+    const activeIds = new Set(traffic.map(ac => ac.id));
+    trafficMarkersRef.current.forEach((m, id) => {
+      if (!activeIds.has(id)) {
+        m.remove();
+        trafficMarkersRef.current.delete(id);
+      }
+    });
+  }, [traffic, showTraffic, mapRef]);
 
   // GPS tracking
   useEffect(() => {
@@ -253,16 +382,16 @@ const FreeAviationChart = ({
               <Select value={chartType} onValueChange={(v) => setChartTypeState(v as ChartType)}>
                 <SelectTrigger className="h-8 sm:h-9 text-xs sm:text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="sectional">VFR Sectional</SelectItem>
-                  <SelectItem value="ifr-low">IFR Low</SelectItem>
-                  <SelectItem value="ifr-high">IFR High</SelectItem>
+                  <SelectItem value="sectional">VFR Sectional (US)</SelectItem>
+                  <SelectItem value="ifr-low">IFR Low (US)</SelectItem>
+                  <SelectItem value="ifr-high">IFR High (US)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           )}
 
           <div className="col-span-1 sm:flex-1 sm:min-w-[100px]">
-            <Label className="text-[10px] sm:text-xs mb-1 flex items-center gap-1"><Map className="h-3 w-3" />Base</Label>
+            <Label className="text-[10px] sm:text-xs mb-1 flex items-center gap-1"><MapIcon className="h-3 w-3" />Base</Label>
             <Select value={baseMapStyle} onValueChange={(v) => setBaseMapStyle(v as BaseMapStyle)}>
               <SelectTrigger className="h-8 sm:h-9 text-xs sm:text-sm"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -279,8 +408,11 @@ const FreeAviationChart = ({
           </div>
 
           <div className="flex gap-1 col-span-2 sm:col-span-1 justify-center sm:justify-start">
-            <Button variant="outline" size="icon" className="h-8 w-8 sm:h-9 sm:w-9" onClick={zoomOut}><ZoomOut className="h-3.5 w-3.5 sm:h-4 sm:w-4" /></Button>
-            <Button variant="outline" size="icon" className="h-8 w-8 sm:h-9 sm:w-9" onClick={zoomIn}><ZoomIn className="h-3.5 w-3.5 sm:h-4 sm:w-4" /></Button>
+            <Button variant="outline" size="icon" className="h-8 w-8 sm:h-9 sm:w-9" onClick={zoomOut} title="Zoom Out"><ZoomOut className="h-3.5 w-3.5 sm:h-4 sm:w-4" /></Button>
+            <Button variant="outline" size="icon" className="h-8 w-8 sm:h-9 sm:w-9" onClick={zoomIn} title="Zoom In"><ZoomIn className="h-3.5 w-3.5 sm:h-4 sm:w-4" /></Button>
+            <Button variant="outline" size="icon" className="h-8 w-8 sm:h-9 sm:w-9" onClick={handleLocateMe} title="Locate Me">
+              <LocateFixed className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${showGPS ? 'text-green-500' : ''}`} />
+            </Button>
             {onWaypointAdd && (
               <Button variant={isAddingWaypoint ? 'default' : 'outline'} size="sm" onClick={() => setIsAddingWaypoint(!isAddingWaypoint)} className="h-8 sm:h-9 text-xs sm:text-sm px-2 sm:px-3">
                 <MapPin className="h-3.5 w-3.5 sm:h-4 sm:w-4 sm:mr-1.5" />
@@ -320,6 +452,14 @@ const FreeAviationChart = ({
               <Plane className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               <span className="hidden sm:inline">Airports</span>
               <Switch checked={showAirports} onCheckedChange={setShowAirports} className="scale-90 sm:scale-100" />
+            </div>
+
+            <div className="w-px h-3 sm:h-4 bg-border" />
+
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <Radar className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-green-500" />
+              <span className="hidden sm:inline">Traffic</span>
+              <Switch checked={showTraffic} onCheckedChange={setShowTraffic} className="scale-90 sm:scale-100" />
             </div>
 
             <div className="w-px h-3 sm:h-4 bg-border" />
@@ -380,6 +520,7 @@ const FreeAviationChart = ({
               {showAirspace && <div className="flex items-center gap-1"><Shield className="h-2.5 w-2.5 sm:h-3 sm:w-3" /><span className="hidden sm:inline">Airspace</span></div>}
               {showTFRs && <div className="flex items-center gap-1 text-red-500"><AlertTriangle className="h-2.5 w-2.5 sm:h-3 sm:w-3" /><span className="hidden sm:inline">TFRs</span></div>}
               {showAirports && <div className="flex items-center gap-1"><Plane className="h-2.5 w-2.5 sm:h-3 sm:w-3" /><span className="hidden sm:inline">Airports</span></div>}
+              {showTraffic && <div className="flex items-center gap-1 text-green-500"><Radar className="h-2.5 w-2.5 sm:h-3 sm:w-3" /><span className="hidden sm:inline">Traffic</span></div>}
             </div>
           </div>
         </div>

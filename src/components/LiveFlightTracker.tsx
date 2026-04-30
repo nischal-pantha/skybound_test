@@ -27,8 +27,8 @@ interface FlightState {
 
 // OpenSky endpoints — try direct first, fall back to public proxy
 const OPENSKY_URLS = [
-  'https://opensky-network.org/api/states/all?lamin=24&lomin=-125&lamax=50&lomax=-66',
-  'https://opensky-network.org/api/states/all', // global fallback (smaller region)
+  'https://corsproxy.io/?' + encodeURIComponent('https://opensky-network.org/api/states/all?lamin=24&lomin=-125&lamax=50&lomax=-66'),
+  'https://corsproxy.io/?' + encodeURIComponent('https://opensky-network.org/api/states/all'), // global fallback (smaller region)
 ];
 
 export const LiveFlightTracker = () => {

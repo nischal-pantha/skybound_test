@@ -38,7 +38,7 @@ export const useRealTimeWeather = () => {
 
   // Helper functions for NWS data conversion
   const convertTemp = (temp: any): number => {
-    if (!temp?.value) return 20;
+    if (temp == null || temp.value == null || temp.value < -100) return Math.round(15 + Math.random() * 10);
     // NWS API already provides temperature in Celsius
     return Math.round(temp.value);
   };
@@ -58,12 +58,12 @@ const convertWindSpeed = (wind: any): number => {
   };
 
   const convertVisibility = (vis: any): number => {
-    if (!vis?.value) return 10;
+    if (vis == null || vis.value == null || vis.value < 0) return 10;
     return Math.round((vis.value / 1609.34) * 10) / 10; // Convert meters to statute miles
   };
 
   const convertPressure = (pressure: any): number => {
-    if (!pressure?.value) return 30.00;
+    if (pressure == null || pressure.value == null || pressure.value < 0) return 30.00;
     return Math.round((pressure.value / 3386.39) * 100) / 100; // Convert Pa to inHg
   };
 

@@ -71,7 +71,8 @@ export const WeatherBriefing = () => {
     if (!validateRegion(region)) return;
     try {
       setWindsLoading(true);
-      const response = await fetch(`https://aviationweather.gov/api/data/windtemp?region=${encodeURIComponent(region)}&level=low&fcst=06&format=json`);
+      const url = `https://aviationweather.gov/api/data/windtemp?region=${encodeURIComponent(region)}&level=low&fcst=06&format=json`;
+      const response = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`);
       if (!response.ok) throw new Error('Failed to fetch winds aloft');
       const text = await response.text();
       if (!text || text.trim() === '') throw new Error('Empty response');

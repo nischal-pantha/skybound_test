@@ -19,7 +19,7 @@ import {
   Target,
   RotateCcw,
   Layers,
-  Map,
+  Map as MapIcon,
   Compass,
   Mountain,
   Route,
@@ -35,10 +35,22 @@ interface Waypoint {
   notes?: string;
 }
 
+interface TrafficAircraft {
+  id: string;
+  callsign: string;
+  lat: number;
+  lng: number;
+  altitude: number;
+  heading: number;
+  speed: number;
+  type: string;
+}
+
 interface UnifiedAviationChartProps {
   waypoints?: Waypoint[];
   onWaypointAdd?: (waypoint: Waypoint) => void;
   onWaypointClick?: (waypoint: Waypoint) => void;
+  onWaypointRemove?: (waypoint: Waypoint, index: number) => void;
   className?: string;
   showControls?: boolean;
   minHeight?: string;
@@ -52,10 +64,11 @@ const CHART_TYPES = {
     name: 'VFR Sectional',
     description: 'Standard VFR navigation chart',
     url: `${ARCGIS_BASE}/VFR_Sectional/MapServer/tile/{z}/{y}/{x}`,
-    icon: Map,
+    icon: MapIcon,
     category: 'VFR',
     tms: false,
-    maxZoom: 12,
+    maxZoom: 14, // Increased to allow more detail
+    minNativeZoom: 10, // Force scaling from level 10 down to level 1
     attribution: 'Charts © FAA / ArcGIS'
   },
   terminal: {
@@ -65,7 +78,8 @@ const CHART_TYPES = {
     icon: Plane,
     category: 'VFR',
     tms: false,
-    maxZoom: 14,
+    maxZoom: 16,
+    minNativeZoom: 12, // Terminals are very detailed, start scaling from 12
     attribution: 'Charts © FAA / ArcGIS'
   },
   enroute_low: {
@@ -75,7 +89,8 @@ const CHART_TYPES = {
     icon: Route,
     category: 'IFR',
     tms: false,
-    maxZoom: 11,
+    maxZoom: 12,
+    minNativeZoom: 8,
     attribution: 'Charts © FAA / ArcGIS'
   },
   enroute_high: {
@@ -85,7 +100,8 @@ const CHART_TYPES = {
     icon: Mountain,
     category: 'IFR',
     tms: false,
-    maxZoom: 11,
+    maxZoom: 12,
+    minNativeZoom: 8,
     attribution: 'Charts © FAA / ArcGIS'
   },
   world_nav: {
@@ -96,6 +112,7 @@ const CHART_TYPES = {
     category: 'VFR',
     tms: false,
     maxZoom: 10,
+    minNativeZoom: 1,
     attribution: 'Charts © Esri'
   }
 } as const;
@@ -106,6 +123,7 @@ export const UnifiedAviationChart: React.FC<UnifiedAviationChartProps> = ({
   waypoints = [],
   onWaypointAdd,
   onWaypointClick,
+  onWaypointRemove,
   className = '',
   showControls = true,
   minHeight = '500px'
@@ -122,9 +140,12 @@ export const UnifiedAviationChart: React.FC<UnifiedAviationChartProps> = ({
   const [waypointIdentifier, setWaypointIdentifier] = useState('');
   const [showLabels, setShowLabels] = useState(true);
   const [showRoute, setShowRoute] = useState(true);
+  const [showTraffic, setShowTraffic] = useState(true);
   const [chartOpacity, setChartOpacity] = useState(0.85);
   const [locating, setLocating] = useState(false);
   const userMarkerRef = useRef<L.Marker | null>(null);
+  const [traffic, setTraffic] = useState<TrafficAircraft[]>([]);
+  const trafficMarkersRef = useRef<Map<string, L.Marker>>(new Map());
 
   const currentChart = useMemo(() => CHART_TYPES[chartType], [chartType]);
 
@@ -134,7 +155,7 @@ export const UnifiedAviationChart: React.FC<UnifiedAviationChartProps> = ({
       const avgLng = waypoints.reduce((sum, w) => sum + w.lng, 0) / waypoints.length;
       return { center: [avgLat, avgLng], zoom: 8 };
     }
-    return { center: [39.8283, -98.5795], zoom: 5 }; // Center of US
+    return { center: [37.7749, -122.4194], zoom: 8 }; // Start in Bay Area at zoom 8
   }, [waypoints]);
 
   const clearMarkers = useCallback(() => {
@@ -196,7 +217,8 @@ export const UnifiedAviationChart: React.FC<UnifiedAviationChartProps> = ({
       });
 
       if (showLabels) {
-        marker.bindPopup(`
+        const popupDiv = document.createElement('div');
+        popupDiv.innerHTML = `
           <div style="padding: 8px; min-width: 120px;">
             <div style="font-weight: 600; font-size: 14px; margin-bottom: 4px;">${wp.identifier}</div>
             <div style="font-size: 11px; color: #666; text-transform: uppercase; margin-bottom: 4px;">${wp.type}</div>
@@ -204,8 +226,19 @@ export const UnifiedAviationChart: React.FC<UnifiedAviationChartProps> = ({
               ${wp.lat.toFixed(4)}°, ${wp.lng.toFixed(4)}°
             </div>
             ${wp.notes ? `<div style="font-size: 11px; margin-top: 4px; color: #555;">${wp.notes}</div>` : ''}
+            ${onWaypointRemove ? `<button class="remove-wp-btn" style="margin-top: 8px; background: #ef4444; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; width: 100%;">Remove from Route</button>` : ''}
           </div>
-        `);
+        `;
+        
+        const btn = popupDiv.querySelector('.remove-wp-btn');
+        if (btn) {
+          btn.addEventListener('click', () => {
+            if (onWaypointRemove) onWaypointRemove(wp, index);
+            marker.closePopup();
+          });
+        }
+        
+        marker.bindPopup(popupDiv);
 
         marker.bindTooltip(wp.identifier, {
           permanent: false,
@@ -247,15 +280,18 @@ export const UnifiedAviationChart: React.FC<UnifiedAviationChartProps> = ({
       opacity: chartOpacity,
       attribution: currentChart.attribution,
       maxZoom: currentChart.maxZoom,
-      minZoom: 4,
-      errorTileUrl: '', // Suppress error tiles
+      minZoom: 1, // Allow extreme zoom out
+      minNativeZoom: (currentChart as any).minNativeZoom || 1, // Use the per-layer minNativeZoom
+      errorTileUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+      zIndex: 10,
+      bounds: [[20, -130], [55, -60]], // Roughly cover USA to prevent unnecessary requests
     }).addTo(mapRef.current);
 
     // Handle tile load errors gracefully
-    chartLayerRef.current.on('tileerror', (error) => {
-      console.warn('Chart tile load error:', error);
+    chartLayerRef.current.on('tileerror', () => {
+      // Silently ignore 404s for tiles outside the coverage area
     });
-  }, [currentChart, chartOpacity]);
+  }, [currentChart, chartOpacity, chartType]);
 
   // Initialize map
   useEffect(() => {
@@ -266,12 +302,15 @@ export const UnifiedAviationChart: React.FC<UnifiedAviationChartProps> = ({
     try {
       mapRef.current = L.map(mapContainer.current, {
         zoomControl: false,
-        attributionControl: false
+        attributionControl: false,
+        minZoom: 2,
+        maxZoom: 18,
       }).setView(center, zoom);
 
       // Minimal dark base layer that blends with chart overlay
       L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
         maxZoom: 19,
+        minZoom: 2,
       }).addTo(mapRef.current);
 
       addChartLayer();
@@ -288,7 +327,20 @@ export const UnifiedAviationChart: React.FC<UnifiedAviationChartProps> = ({
       toast.error('Failed to initialize chart');
     }
 
+    let resizeObserver: ResizeObserver | null = null;
+    if (mapContainer.current) {
+      resizeObserver = new ResizeObserver(() => {
+        if (mapRef.current) {
+          mapRef.current.invalidateSize();
+        }
+      });
+      resizeObserver.observe(mapContainer.current);
+    }
+
     return () => {
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
       clearMarkers();
       if (mapRef.current) {
         mapRef.current.remove();
@@ -329,6 +381,117 @@ export const UnifiedAviationChart: React.FC<UnifiedAviationChartProps> = ({
     const { center, zoom } = getInitialView();
     mapRef.current?.flyTo(center, zoom);
   };
+
+  // Real-time Traffic from OpenSky Network API
+  useEffect(() => {
+    if (!showTraffic || !mapRef.current) {
+      trafficMarkersRef.current.forEach(m => m.remove());
+      trafficMarkersRef.current.clear();
+      return;
+    }
+
+    const fetchTraffic = async () => {
+      try {
+        // San Francisco Bay Area bounding box
+        const lamin = 36.5;
+        const lomin = -123.5;
+        const lamax = 38.5;
+        const lomax = -121.0;
+        
+        const response = await fetch(
+          `https://opensky-network.org/api/states/all?lamin=${lamin}&lomin=${lomin}&lamax=${lamax}&lomax=${lomax}`
+        );
+        
+        if (!response.ok) throw new Error('OpenSky API error');
+        
+        const data = await response.json();
+        if (!data.states) return;
+
+        const liveTraffic: TrafficAircraft[] = data.states.map((s: any) => ({
+          id: s[0], // icao24
+          callsign: (s[1] || 'UNK').trim(),
+          lng: s[5],
+          lat: s[6],
+          altitude: s[7] ? s[7] * 3.281 : 0, // meters to feet
+          speed: s[9] ? s[9] * 1.944 : 0, // m/s to knots
+          heading: s[10] || 0, // true track
+          type: 'Live', // OpenSky doesn't provide type in the states call
+        })).filter((ac: TrafficAircraft) => ac.lat && ac.lng);
+
+        setTraffic(liveTraffic);
+      } catch (err) {
+        console.error('Failed to fetch live traffic:', err);
+        // Fallback to simulated traffic if API fails (rate limited or down)
+        if (traffic.length === 0) {
+          const fallbackTraffic: TrafficAircraft[] = [
+            { id: 'sim-1', callsign: 'N12345', lat: 37.52, lng: -122.15, altitude: 4500, heading: 45, speed: 110, type: 'Sim' },
+            { id: 'sim-2', callsign: 'UAL456', lat: 37.65, lng: -122.35, altitude: 12000, heading: 270, speed: 380, type: 'Sim' },
+          ];
+          setTraffic(fallbackTraffic);
+        }
+      }
+    };
+
+    fetchTraffic();
+    const interval = setInterval(fetchTraffic, 10000); // Fetch every 10 seconds
+
+    return () => clearInterval(interval);
+  }, [showTraffic]);
+
+  // Update Traffic Markers
+  useEffect(() => {
+    if (!mapRef.current || !showTraffic) return;
+
+    traffic.forEach(ac => {
+      let marker = trafficMarkersRef.current.get(ac.id);
+      
+      const trafficIcon = L.divIcon({
+        className: 'traffic-marker',
+        html: `
+          <div style="position: relative; width: 40px; height: 40px; transform: rotate(${ac.heading}deg);">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="hsl(var(--primary))" stroke="white" stroke-width="1.5">
+              <path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3-.5-4.5.5L13 7 4.8 5.2c-.3-.1-.6 0-.8.3l-.6.6c-.2.2-.2.5-.1.7l7.4 3.5-2.8 2.8-2.2-.6c-.3-.1-.6 0-.8.2l-.5.5c-.2.2-.2.5 0 .7l2.1 2.1.2 3.1c0 .3.2.5.5.5h.5c.2 0 .5-.1.6-.3l2.8-2.8 3.5 7.4c.1.2.4.3.7.1l.6-.6c.3-.2.4-.5.3-.8z"/>
+            </svg>
+          </div>
+          <div style="position: absolute; top: 24px; left: 50%; transform: translateX(-50%); 
+            background: rgba(0,0,0,0.7); color: white; padding: 1px 4px; border-radius: 3px; 
+            font-size: 9px; font-weight: bold; white-space: nowrap; pointer-events: none; z-index: 1000;">
+            ${ac.callsign}<br/>${Math.round(ac.altitude / 100)}
+          </div>
+        `,
+        iconSize: [40, 40],
+        iconAnchor: [20, 20],
+      });
+
+      if (marker) {
+        marker.setLatLng([ac.lat, ac.lng]);
+        marker.setIcon(trafficIcon);
+      } else {
+        marker = L.marker([ac.lat, ac.lng], { icon: trafficIcon, zIndexOffset: 500 })
+          .addTo(mapRef.current!)
+          .bindPopup(`
+            <div class="p-2">
+              <div class="font-bold">${ac.callsign} (${ac.type})</div>
+              <div class="text-xs text-muted-foreground">
+                Altitude: ${Math.round(ac.altitude)} ft<br/>
+                Speed: ${Math.round(ac.speed)} kts<br/>
+                Heading: ${Math.round(ac.heading)}°
+              </div>
+            </div>
+          `);
+        trafficMarkersRef.current.set(ac.id, marker);
+      }
+    });
+
+    // Cleanup old traffic
+    const activeIds = new Set(traffic.map(ac => ac.id));
+    trafficMarkersRef.current.forEach((m, id) => {
+      if (!activeIds.has(id)) {
+        m.remove();
+        trafficMarkersRef.current.delete(id);
+      }
+    });
+  }, [traffic, showTraffic]);
 
   const goToMyLocation = useCallback(() => {
     if (!navigator.geolocation) {
@@ -466,6 +629,16 @@ export const UnifiedAviationChart: React.FC<UnifiedAviationChartProps> = ({
                   className="scale-75"
                 />
                 <Label htmlFor="show-route" className="text-xs cursor-pointer">Route</Label>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="show-traffic"
+                  checked={showTraffic}
+                  onCheckedChange={setShowTraffic}
+                  className="scale-75"
+                />
+                <Label htmlFor="show-traffic" className="text-xs cursor-pointer">Traffic</Label>
               </div>
             </div>
 

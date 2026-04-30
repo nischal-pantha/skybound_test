@@ -46,6 +46,7 @@ interface EnhancedAircraftFormProps {
 }
 
 export const EnhancedAircraftForm = ({ onAddAircraft, onClose, editingAircraft }: EnhancedAircraftFormProps) => {
+  const [activeTab, setActiveTab] = useState("basic");
   const [formData, setFormData] = useState<AircraftFormData>({
     name: editingAircraft?.name || "",
     emptyWeight: editingAircraft?.emptyWeight?.toString() || "",
@@ -159,7 +160,7 @@ export const EnhancedAircraftForm = ({ onAddAircraft, onClose, editingAircraft }
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            <Tabs defaultValue="basic" className="w-full">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="basic">Basic Info</TabsTrigger>
                 <TabsTrigger value="weight-balance">Weight & Balance</TabsTrigger>
@@ -538,13 +539,27 @@ export const EnhancedAircraftForm = ({ onAddAircraft, onClose, editingAircraft }
             </Tabs>
 
             <div className="flex gap-2 pt-4">
-              <Button 
-                type="submit" 
-                className="flex-1 bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 transition-all duration-300 transform hover:scale-105"
-              >
-                <Save className="h-4 w-4 mr-2" />
-                {editingAircraft ? 'Update Aircraft' : 'Add Aircraft'}
-              </Button>
+              {activeTab === "basic" && (
+                <Button type="button" onClick={() => setActiveTab("weight-balance")} className="flex-1">Next: Weight & Balance</Button>
+              )}
+              {activeTab === "weight-balance" && (
+                <>
+                  <Button type="button" variant="outline" onClick={() => setActiveTab("basic")}>Previous</Button>
+                  <Button type="button" onClick={() => setActiveTab("performance")} className="flex-1">Next: Performance</Button>
+                </>
+              )}
+              {activeTab === "performance" && (
+                <>
+                  <Button type="button" variant="outline" onClick={() => setActiveTab("weight-balance")}>Previous</Button>
+                  <Button 
+                    type="submit" 
+                    className="flex-1 bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 transition-all duration-300 transform hover:scale-105"
+                  >
+                    <Save className="h-4 w-4 mr-2" />
+                    {editingAircraft ? 'Update Aircraft' : 'Add Aircraft'}
+                  </Button>
+                </>
+              )}
               <Button type="button" variant="outline" onClick={onClose} className="transition-all duration-200 hover:scale-105">
                 Cancel
               </Button>

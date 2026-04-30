@@ -68,14 +68,26 @@ export const IntegratedFlightPlanning = () => {
     if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
       notify.error('Invalid Coordinates', 'Please enter valid coordinates'); return;
     }
-    addWaypoint({ identifier: identifier.toUpperCase(), lat, lng, type: 'custom' });
+    const newWaypoint = { identifier: identifier.toUpperCase(), lat, lng, type: 'custom' as const };
+    addWaypoint(newWaypoint);
+    if (currentFlightPlan) {
+      const updatedWaypoints = [...(currentFlightPlan.waypoints || []), newWaypoint];
+      updateFlightPlan({ route: updatedWaypoints.map(w => w.identifier).join(' ') });
+      setTimeout(() => calculateFlightPlan(), 100);
+    }
     notify.success('Waypoint Added', `${identifier.toUpperCase()} added`);
   };
 
   const handleAddCurrentPosition = () => {
     if (!gpsPosition) { notify.error('GPS Unavailable', 'Please enable GPS tracking first'); return; }
     const identifier = `GPS${Date.now().toString().slice(-4)}`;
-    addWaypoint({ identifier, lat: gpsPosition.latitude, lng: gpsPosition.longitude, type: 'gps', altitude: gpsPosition.altitude || undefined });
+    const newWaypoint = { identifier, lat: gpsPosition.latitude, lng: gpsPosition.longitude, type: 'gps' as const, altitude: gpsPosition.altitude || undefined };
+    addWaypoint(newWaypoint);
+    if (currentFlightPlan) {
+      const updatedWaypoints = [...(currentFlightPlan.waypoints || []), newWaypoint];
+      updateFlightPlan({ route: updatedWaypoints.map(w => w.identifier).join(' ') });
+      setTimeout(() => calculateFlightPlan(), 100);
+    }
     notify.success('Position Added', `GPS position saved as ${identifier}`);
   };
 
@@ -212,7 +224,14 @@ export const IntegratedFlightPlanning = () => {
                       <div className="text-muted-foreground">{waypoint.heading ? `${waypoint.heading}°` : '-'}</div>
                       <div className="text-muted-foreground">{waypoint.timeEnroute ? `${waypoint.timeEnroute.toFixed(0)} min` : '-'}</div>
                     </div>
-                    <Button size="sm" variant="ghost" onClick={() => removeWaypoint(idx)} className="opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7 p-0">
+                    <Button size="sm" variant="ghost" onClick={() => {
+                      removeWaypoint(idx);
+                      if (currentFlightPlan?.waypoints) {
+                        const newWaypoints = currentFlightPlan.waypoints.filter((_, i) => i !== idx);
+                        updateFlightPlan({ route: newWaypoints.map(w => w.identifier).join(' ') });
+                        setTimeout(() => calculateFlightPlan(), 100);
+                      }
+                    }} className="opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7 p-0">
                       <Trash2 className="h-3.5 w-3.5 text-destructive" />
                     </Button>
                   </div>
@@ -284,7 +303,24 @@ export const IntegratedFlightPlanning = () => {
           <div className="rounded-2xl overflow-hidden border border-border/40">
             <UnifiedAviationChart
               waypoints={currentFlightPlan?.waypoints}
-              onWaypointAdd={(waypoint) => { addWaypoint(waypoint); notify.success('Waypoint Added', `${waypoint.identifier} added`); }}
+              onWaypointAdd={(waypoint) => { 
+                addWaypoint(waypoint); 
+                notify.success('Waypoint Added', `${waypoint.identifier} added`); 
+                if (currentFlightPlan) {
+                  const updatedWaypoints = [...(currentFlightPlan.waypoints || []), waypoint];
+                  updateFlightPlan({ route: updatedWaypoints.map(w => w.identifier).join(' ') });
+                  setTimeout(() => calculateFlightPlan(), 100);
+                }
+              }}
+              onWaypointRemove={(waypoint, index) => {
+                removeWaypoint(index);
+                notify.success('Waypoint Removed', `${waypoint.identifier} removed`);
+                if (currentFlightPlan?.waypoints) {
+                  const newWaypoints = currentFlightPlan.waypoints.filter((_, i) => i !== index);
+                  updateFlightPlan({ route: newWaypoints.map(w => w.identifier).join(' ') });
+                  setTimeout(() => calculateFlightPlan(), 100);
+                }
+              }}
               minHeight="600px"
               className="animate-fade-in"
             />

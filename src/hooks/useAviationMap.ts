@@ -5,7 +5,7 @@ import { TFR_DATA, TFR_COLORS } from '@/data/tfrData';
 import { AIRPORT_DATA, getAirportIcon, type Airport } from '@/data/airportData';
 import type { GPSPosition } from '@/hooks/useGPSLocation';
 
-export type ChartType = 'sectional' | 'ifr-low' | 'ifr-high';
+export type ChartType = 'sectional' | 'ifr-low' | 'ifr-high' | 'openaip' | 'openflightmaps';
 export type BaseMapStyle = 'streets' | 'satellite' | 'terrain';
 
 export interface Waypoint {
@@ -22,6 +22,8 @@ export const CHART_URLS: Record<ChartType, string> = {
   sectional: `${ARCGIS_BASE}/VFR_Sectional/MapServer/tile/{z}/{y}/{x}`,
   'ifr-low': `${ARCGIS_BASE}/IFR_AreaLow/MapServer/tile/{z}/{y}/{x}`,
   'ifr-high': `${ARCGIS_BASE}/IFR_High/MapServer/tile/{z}/{y}/{x}`,
+  'openaip': 'https://{s}.api.tiles.openaip.net/api/data/openaip/{z}/{x}/{y}.png?apiKey=',
+  'openflightmaps': 'https://nwy-tiles-api.prod.newaydata.com/tiles/{z}/{x}/{y}.png?path=latest/aero/latest',
 };
 
 export const BASE_MAP_URLS: Record<BaseMapStyle, { url: string; attribution: string }> = {
@@ -61,6 +63,12 @@ export const useAviationMap = () => {
       attributionControl: false,
     });
 
+    const resizeObserver = new ResizeObserver(() => {
+      map.invalidateSize();
+    });
+    resizeObserver.observe(container);
+    (map as any)._resizeObserver = resizeObserver;
+
     mapRef.current = map;
     return map;
   }, []);
@@ -79,16 +87,21 @@ export const useAviationMap = () => {
     }).addTo(mapRef.current);
   }, []);
 
-  const setChartLayer = useCallback((type: ChartType, opacity: number) => {
+  const setChartLayer = useCallback((type: ChartType, opacity: number, apiKey?: string) => {
     if (!mapRef.current) return;
 
     if (chartLayerRef.current) {
       mapRef.current.removeLayer(chartLayerRef.current);
     }
 
-    chartLayerRef.current = L.tileLayer(CHART_URLS[type], {
+    let url = CHART_URLS[type];
+    if (type === 'openaip' && apiKey) {
+      url += apiKey;
+    }
+
+    chartLayerRef.current = L.tileLayer(url, {
       opacity,
-      attribution: 'Charts: FAA © ArcGIS',
+      attribution: type === 'openaip' ? '© OpenAIP' : type === 'openflightmaps' ? '© OpenFlightMaps' : 'Charts: FAA © ArcGIS',
       maxZoom: 12,
       minZoom: 4,
     }).addTo(mapRef.current);
@@ -331,6 +344,9 @@ export const useAviationMap = () => {
   const cleanup = useCallback(() => {
     clearMarkers();
     if (mapRef.current) {
+      if ((mapRef.current as any)._resizeObserver) {
+        (mapRef.current as any)._resizeObserver.disconnect();
+      }
       mapRef.current.remove();
       mapRef.current = null;
     }
