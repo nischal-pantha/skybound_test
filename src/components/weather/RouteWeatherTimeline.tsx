@@ -33,11 +33,18 @@ interface WaypointTimeline {
   worstHour: number;
 }
 
-const CATEGORY_COLORS: Record<string, string> = {
-  VFR: '#22c55e',
-  MVFR: '#3b82f6',
-  IFR: '#ef4444',
-  LIFR: '#a855f7',
+const CATEGORY_CLASSES: Record<'VFR' | 'MVFR' | 'IFR' | 'LIFR', string> = {
+  VFR: 'bg-emerald-500',
+  MVFR: 'bg-blue-500',
+  IFR: 'bg-red-500',
+  LIFR: 'bg-purple-500',
+};
+
+const CATEGORY_TEXT_CLASSES: Record<'VFR' | 'MVFR' | 'IFR' | 'LIFR', string> = {
+  VFR: 'text-emerald-500',
+  MVFR: 'text-blue-500',
+  IFR: 'text-red-500',
+  LIFR: 'text-purple-500',
 };
 
 const CATEGORY_RANK: Record<string, number> = {
@@ -213,14 +220,12 @@ export const RouteWeatherTimeline = ({ waypoints }: RouteWeatherTimelineProps) =
                     <tr key={tl.waypointId} className="border-t border-border/30">
                       <td className="p-1 font-mono font-bold sticky left-0 bg-muted/30 z-10">{tl.identifier}</td>
                       {tl.forecasts.map((f, i) => {
-                        const color = CATEGORY_COLORS[f.condition];
                         const wxDesc = weatherCodeToDesc(f.weatherCode);
                         return (
                           <td key={i} className="p-1 text-center">
                             <div className="flex flex-col items-center gap-0.5">
                               <span
-                                className="px-1.5 py-0.5 rounded text-white font-bold text-[10px]"
-                                style={{ backgroundColor: color }}
+                                className={`px-1.5 py-0.5 rounded text-white font-bold text-[10px] ${CATEGORY_CLASSES[f.condition]}`}
                                 title={`${f.visibility}SM, ${f.ceiling ? f.ceiling + 'ft' : 'CLR'}, ${f.windSpeed}kt${f.windGust ? ' G' + f.windGust : ''}`}
                               >
                                 {f.condition}
@@ -255,7 +260,7 @@ export const RouteWeatherTimeline = ({ waypoints }: RouteWeatherTimelineProps) =
                   <div key={t.waypointId} className="flex items-center gap-1">
                     <AlertTriangle className="h-3 w-3 text-destructive" />
                     <span className="font-medium">{t.identifier}</span>
-                    <span style={{ color: CATEGORY_COLORS[t.worstCondition] }}>{t.worstCondition}</span>
+                    <span className={CATEGORY_TEXT_CLASSES[t.worstCondition]}>{t.worstCondition}</span>
                     <span className="text-muted-foreground">at +{t.worstHour}h</span>
                   </div>
                 ))}

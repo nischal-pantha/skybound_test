@@ -260,17 +260,17 @@ function StatCard({ label, value, sub, icon, color, delay }: {
 }
 
 function ProgressRow({ label, current, required }: { label: string; current: number; required: number }) {
-  const pct = Math.min((current / required) * 100, 100);
   return (
     <div className="space-y-2">
       <div className="flex justify-between items-center">
         <span className="text-sm font-medium">{label}</span>
         <span className="text-xs text-muted-foreground">{current.toFixed(1)} / {required}h</span>
       </div>
-      <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-        <div
-          className="h-full bg-primary rounded-full transition-all duration-700"
-          style={{ width: `${pct}%` }}
+      <div className="w-full h-2 rounded-full overflow-hidden bg-muted">
+        <progress
+          value={Math.min(current, required)}
+          max={required}
+          className="w-full h-2 appearance-none rounded-full bg-muted overflow-hidden"
         />
       </div>
     </div>

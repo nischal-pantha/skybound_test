@@ -2194,25 +2194,21 @@ export const WeatherRadarMap = ({ airports, waypoints = [], showRouteWeather: in
                       <div className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">
                         Precipitation Intensity
                       </div>
-                      <div className="h-4 rounded-md mb-2 overflow-hidden" 
-                        style={{ 
-                          background: 'linear-gradient(to right, #88ddff 0%, #00ff00 15%, #00cc00 25%, #ffff00 40%, #ffcc00 50%, #ff9900 60%, #ff0000 75%, #cc0000 85%, #990066 100%)' 
-                        }} 
-                      />
+                      <div className="h-4 rounded-md mb-2 overflow-hidden bg-[linear-gradient(to_right,_#88ddff_0%,_#00ff00_15%,_#00cc00_25%,_#ffff00_40%,_#ffcc00_50%,_#ff9900_60%,_#ff0000_75%,_#cc0000_85%,_#990066_100%)]" />
                       <div className="flex justify-between text-[10px] text-muted-foreground mb-2">
                         <span>5</span><span>20</span><span>35</span><span>50</span><span>65+ dBZ</span>
                       </div>
                       <div className="space-y-1">
                         {[
-                          ['#88ddff', 'Drizzle / Mist', '<15 dBZ'],
-                          ['#00cc00', 'Light Rain', '15-30 dBZ'],
-                          ['#ffcc00', 'Moderate Rain', '30-40 dBZ'],
-                          ['#ff6600', 'Heavy Rain', '40-50 dBZ'],
-                          ['#ff0000', 'Very Heavy / Hail', '50-60 dBZ'],
-                          ['#990066', 'Extreme / Severe', '>60 dBZ'],
-                        ].map(([color, label, range]) => (
+                          ['bg-[#88ddff]', 'Drizzle / Mist', '<15 dBZ'],
+                          ['bg-[#00cc00]', 'Light Rain', '15-30 dBZ'],
+                          ['bg-[#ffcc00]', 'Moderate Rain', '30-40 dBZ'],
+                          ['bg-[#ff6600]', 'Heavy Rain', '40-50 dBZ'],
+                          ['bg-[#ff0000]', 'Very Heavy / Hail', '50-60 dBZ'],
+                          ['bg-[#990066]', 'Extreme / Severe', '>60 dBZ'],
+                        ].map(([colorClass, label, range]) => (
                           <div key={label} className="flex items-center gap-2">
-                            <div className="w-4 h-3 rounded" style={{ backgroundColor: color }}></div>
+                            <div className={`w-4 h-3 rounded ${colorClass}`}></div>
                             <span className="text-xs">{label}</span>
                             <span className="text-[10px] text-muted-foreground ml-auto">{range}</span>
                           </div>
@@ -2231,9 +2227,9 @@ export const WeatherRadarMap = ({ airports, waypoints = [], showRouteWeather: in
                           )}
                         </div>
                         <div className="space-y-1">
-                          {[['#ffff00', 'Recent (<1 min)'], ['#ffa500', '1-3 minutes ago'], ['#ff4444', '3-5 minutes ago']].map(([c, l]) => (
+                          {[["bg-[#ffff00] shadow-[0_0_4px_#ffff00]", 'Recent (<1 min)'], ["bg-[#ffa500] shadow-[0_0_4px_#ffa500]", '1-3 minutes ago'], ["bg-[#ff4444] shadow-[0_0_4px_#ff4444]", '3-5 minutes ago']].map(([colorClass, l]) => (
                             <div key={l} className="flex items-center gap-2">
-                              <div className="w-4 h-3 rounded-full" style={{ backgroundColor: c, boxShadow: `0 0 4px ${c}` }}></div>
+                              <div className={`w-4 h-3 rounded-full ${colorClass}`}></div>
                               <span className="text-xs">{l}</span>
                             </div>
                           ))}
@@ -2249,7 +2245,7 @@ export const WeatherRadarMap = ({ airports, waypoints = [], showRouteWeather: in
                         <div className="space-y-1">
                           {[['#eab308', 'Moderate Activity'], ['#f97316', 'Significant Activity'], ['#dc2626', 'Severe Activity']].map(([c, l]) => (
                             <div key={l} className="flex items-center gap-2">
-                              <div className="w-4 h-3 rounded-full border-2 border-dashed" style={{ borderColor: c, backgroundColor: `${c}40` }}></div>
+                              <div className={`w-4 h-3 rounded-full border-2 border-dashed border-[${c}] bg-[${c}40]`}></div>
                               <span className="text-xs">{l}</span>
                             </div>
                           ))}
@@ -2263,9 +2259,9 @@ export const WeatherRadarMap = ({ airports, waypoints = [], showRouteWeather: in
                           <CloudRain className="h-3 w-3 text-blue-500" /> Precipitation Forecast
                         </div>
                         <div className="space-y-1">
-                          {[['#22c55e', 'Dry (0 mm)'], ['#60a5fa', 'Light (<1 mm/h)'], ['#3b82f6', 'Moderate (1-2.5 mm/h)'], ['#f59e0b', 'Heavy (2.5-7.5 mm/h)'], ['#ef4444', 'Very Heavy (7.5-15 mm/h)'], ['#9333ea', 'Extreme (>15 mm/h)']].map(([c, l]) => (
+                          {[['bg-green-500', 'Dry (0 mm)'], ['bg-blue-400', 'Light (<1 mm/h)'], ['bg-blue-500', 'Moderate (1-2.5 mm/h)'], ['bg-amber-500', 'Heavy (2.5-7.5 mm/h)'], ['bg-red-500', 'Very Heavy (7.5-15 mm/h)'], ['bg-purple-600', 'Extreme (>15 mm/h)']].map(([c, l]) => (
                             <div key={l} className="flex items-center gap-2">
-                              <div className="w-4 h-3 rounded" style={{ backgroundColor: c }}></div>
+                              <div className={`w-4 h-3 rounded ${c}`}></div>
                               <span className="text-xs">{l}</span>
                             </div>
                           ))}
@@ -2290,10 +2286,15 @@ export const WeatherRadarMap = ({ airports, waypoints = [], showRouteWeather: in
                       <div className="border-t pt-3">
                         <div className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">Flight Categories</div>
                         <div className="grid grid-cols-2 gap-1.5">
-                          {[['#22c55e', 'VFR'], ['#3b82f6', 'MVFR'], ['#ef4444', 'IFR'], ['#a855f7', 'LIFR']].map(([c, l]) => (
-                            <div key={l} className="flex items-center gap-1.5">
-                              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: c }}></div>
-                              <span className="text-xs">{l}</span>
+                          {[
+                            ['bg-emerald-500', 'VFR'],
+                            ['bg-blue-500', 'MVFR'],
+                            ['bg-red-500', 'IFR'],
+                            ['bg-purple-500', 'LIFR'],
+                          ].map(([bgClass, label]) => (
+                            <div key={label} className="flex items-center gap-1.5">
+                              <div className={`w-3 h-3 rounded-full ${bgClass}`} />
+                              <span className="text-xs">{label}</span>
                             </div>
                           ))}
                         </div>
@@ -2476,7 +2477,7 @@ export const WeatherRadarMap = ({ airports, waypoints = [], showRouteWeather: in
                         style={{ borderColor: getConditionColor(wp.weather.condition), backgroundColor: `${getConditionColor(wp.weather.condition)}20` }}>
                         <MapPin className="h-3 w-3" />
                         <span className="font-medium">{wp.identifier}</span>
-                        <span className="text-xs px-1.5 py-0.5 rounded text-white font-bold" style={{ backgroundColor: getConditionColor(wp.weather.condition) }}>{wp.weather.condition}</span>
+                        <span className={`text-xs px-1.5 py-0.5 rounded text-white font-bold bg-[${getConditionColor(wp.weather.condition)}]`}>{wp.weather.condition}</span>
                         {wp.trend && getTrendIcon(wp.trend)}
                         <span className="text-xs text-muted-foreground">{wp.weather.visibility}SM</span>
                       </Badge>
@@ -2518,14 +2519,27 @@ export const WeatherRadarMap = ({ airports, waypoints = [], showRouteWeather: in
               <CollapsibleContent>
                 <CardContent className="p-3 pt-2">
                   <div className="flex flex-wrap gap-2">
-                    {precipForecasts.map((forecast) => (
-                      <Badge key={forecast.waypointId} variant="outline" className="flex items-center gap-1.5 px-2 py-1"
-                        style={{ borderColor: getPrecipColor(forecast.maxIntensity), backgroundColor: `${getPrecipColor(forecast.maxIntensity)}20` }}>
-                        <CloudRain className="h-3 w-3" />
-                        <span className="font-medium">{forecast.identifier}</span>
-                        <span className="text-xs px-1.5 py-0.5 rounded text-white font-bold" style={{ backgroundColor: getPrecipColor(forecast.maxIntensity) }}>{forecast.total6h.toFixed(1)}mm</span>
-                      </Badge>
-                    ))}
+                    {precipForecasts.map((forecast) => {
+                      const intensityClasses = forecast.maxIntensity <= 0
+                        ? { border: 'border-emerald-500', bg: 'bg-emerald-500/10', pill: 'bg-emerald-500' }
+                        : forecast.maxIntensity < 1
+                          ? { border: 'border-sky-400', bg: 'bg-sky-400/10', pill: 'bg-sky-400' }
+                          : forecast.maxIntensity < 2.5
+                            ? { border: 'border-blue-500', bg: 'bg-blue-500/10', pill: 'bg-blue-500' }
+                            : forecast.maxIntensity < 7.5
+                              ? { border: 'border-amber-500', bg: 'bg-amber-500/10', pill: 'bg-amber-500' }
+                              : forecast.maxIntensity < 15
+                                ? { border: 'border-red-500', bg: 'bg-red-500/10', pill: 'bg-red-500' }
+                                : { border: 'border-violet-500', bg: 'bg-violet-500/10', pill: 'bg-violet-500' };
+
+                      return (
+                        <Badge key={forecast.waypointId} variant="outline" className={`flex items-center gap-1.5 px-2 py-1 ${intensityClasses.border} ${intensityClasses.bg}`}>
+                          <CloudRain className="h-3 w-3" />
+                          <span className="font-medium">{forecast.identifier}</span>
+                          <span className={`text-xs px-1.5 py-0.5 rounded text-white font-bold ${intensityClasses.pill}`}>{forecast.total6h.toFixed(1)}mm</span>
+                        </Badge>
+                      );
+                    })}
                   </div>
                 </CardContent>
               </CollapsibleContent>

@@ -137,7 +137,8 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     letter-spacing: -0.011em;
-    overscroll-behavior: none;
+    overscroll-behavior-x: none;
+    overscroll-behavior-y: auto;
   }
 
   button:focus:not(:focus-visible) {
@@ -267,6 +268,7 @@
 .animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
 .animate-bounce-in { animation: bounce-in 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55); }
 .animate-float { animation: float 4s ease-in-out infinite; }
+.animate-delay-negative-2s { animation-delay: -2s; }
 .animate-slide-in-up { animation: slide-in-up 0.5s cubic-bezier(0.4, 0, 0.2, 1) both; }
 .animate-slide-in-down { animation: slide-in-down 0.35s ease-out both; }
 .animate-blur-in { animation: blur-in 0.5s ease-out both; }
@@ -311,8 +313,8 @@
 /* Apple-style glass panels */
 .glass-panel {
   background: hsl(var(--background) / 0.72);
-  backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
   border: 1px solid hsl(var(--border) / 0.5);
 }
 
@@ -323,22 +325,22 @@
 
 .glass-card {
   background: hsl(var(--card) / 0.8);
-  backdrop-filter: blur(12px) saturate(150%);
   -webkit-backdrop-filter: blur(12px) saturate(150%);
+  backdrop-filter: blur(12px) saturate(150%);
   border: 1px solid hsl(var(--border) / 0.5);
 }
 
 .glass-input {
   background: hsl(var(--input) / 0.5);
-  backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
 }
 
 /* Weather radar styles */
 .weather-control-panel {
   background: hsl(var(--background) / 0.88);
-  backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
   border-radius: var(--radius);
   border: 1px solid hsl(var(--border) / 0.4);
   box-shadow: 0 8px 30px hsl(0 0% 0% / 0.08);
@@ -359,8 +361,8 @@
 .radar-legend {
   @apply rounded-lg p-3;
   background: hsl(var(--background) / 0.95);
-  backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
 }
 .radar-legend-item { @apply flex items-center gap-2 text-xs; }
 .radar-legend-color { @apply w-4 h-3 rounded-sm shrink-0; }
@@ -375,8 +377,8 @@
 .map-controls {
   @apply flex flex-col gap-1 p-1 rounded-xl;
   background: hsl(var(--background) / 0.88);
-  backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
   border: 1px solid hsl(var(--border) / 0.4);
 }
 .map-control-btn {
@@ -421,8 +423,8 @@
 
 @media (max-width: 640px) {
   .glass-panel {
-    backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
   }
   .weather-control-panel {
     border-radius: calc(var(--radius) * 1.5) calc(var(--radius) * 1.5) 0 0;

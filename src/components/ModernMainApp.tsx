@@ -169,11 +169,11 @@ export const ModernMainApp = () => {
     .find(i => i.id === activeSection)?.title || 'Dashboard';
 
   return (
-    <div className="min-h-screen bg-background font-sans selection:bg-primary/20 selection:text-primary relative overflow-hidden flex h-screen">
+    <div className="min-h-screen bg-background font-sans selection:bg-primary/20 selection:text-primary relative flex flex-col lg:h-screen lg:overflow-hidden overflow-y-auto">
       {/* Aesthetic Background Elements */}
       <div className="fixed inset-0 z-0 pointer-events-none opacity-40 dark:opacity-20">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-primary/20 blur-[120px] animate-float" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-blue-500/20 blur-[120px] animate-float" style={{ animationDelay: '-2s' }} />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-blue-500/20 blur-[120px] animate-float animate-delay-negative-2s" />
       </div>
 
       {/* Command Palette */}
@@ -382,7 +382,7 @@ export const ModernMainApp = () => {
       </div>
 
       {/* Mobile Content */}
-      <main className="lg:hidden pb-20">
+      <main className="lg:hidden flex-1 pb-20 overflow-y-auto min-h-[calc(100vh-5rem)]">
         <div className="p-4">
           {renderMainContent()}
         </div>

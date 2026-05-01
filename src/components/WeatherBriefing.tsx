@@ -118,27 +118,35 @@ export const WeatherBriefing = () => {
       return;
     }
     try {
-      await fetchWeather(departureAirport);
-      await fetchWeather(destinationAirport);
+      const departureResult = await fetchWeather(departureAirport);
+      const destinationResult = await fetchWeather(destinationAirport);
+
       const convertedData: any = {};
-      [departureAirport, destinationAirport].forEach(airport => {
-        if (realTimeWeatherData[airport]) {
-          const d = realTimeWeatherData[airport];
+      [
+        { airport: departureAirport, data: departureResult || realTimeWeatherData[departureAirport] },
+        { airport: destinationAirport, data: destinationResult || realTimeWeatherData[destinationAirport] }
+      ].forEach(({ airport, data }) => {
+        if (data) {
           convertedData[airport] = {
-            raw: d.metar,
+            raw: data.metar,
             decoded: {
-              airport: `${airport} - ${d.location}`, time: new Date(d.lastUpdated).toISOString().slice(11, 16) + 'Z',
-              wind: `${d.windDirection}° at ${d.windSpeed} knots`, visibility: `${d.visibility} statute miles`,
-              clouds: d.cloudCoverage, temperature: `${d.temperature}°C (${Math.round(d.temperature * 9/5 + 32)}°F)`,
-              dewpoint: `${d.dewPoint}°C (${Math.round(d.dewPoint * 9/5 + 32)}°F)`,
-              altimeter: `${d.pressure.toFixed(2)} inHg`, flightRules: d.flightRules
+              airport: `${airport} - ${data.location || airport}`,
+              time: new Date(data.lastUpdated || new Date().toISOString()).toISOString().slice(11, 16) + 'Z',
+              wind: `${data.windDirection ?? 0}° at ${data.windSpeed ?? 0} knots`,
+              visibility: `${data.visibility ?? 0} statute miles`,
+              clouds: data.cloudCoverage || 'Unknown',
+              temperature: `${data.temperature ?? 0}°C (${Math.round((data.temperature ?? 0) * 9/5 + 32)}°F)`,
+              dewpoint: `${data.dewPoint ?? 0}°C (${Math.round((data.dewPoint ?? 0) * 9/5 + 32)}°F)`,
+              altimeter: `${(data.pressure ?? 0).toFixed(2)} inHg`,
+              flightRules: data.flightRules || 'VFR'
             }
           };
         }
       });
+
       if (Object.keys(convertedData).length > 0) {
         setWeatherData(convertedData);
-        notify.success("Weather Updated", "Latest weather data from National Weather Service");
+        notify.success("Weather Updated", "Latest weather data loaded");
       } else {
         setWeatherData(defaultMetarData);
         notify.info("Using Demo Data", "Real weather unavailable, showing sample data");

@@ -76,6 +76,39 @@ const determineFlightRules = (visibility: number, ceiling?: number): 'VFR' | 'MV
     return 'VFR';
   };
 
+  const parseRawMETAR = (raw: string, icao: string) => {
+    const normalized = raw.toUpperCase();
+    const windMatch = normalized.match(/(VRB|\d{3})(\d{2,3})(G\d{2,3})?KT/);
+    const visMatch = normalized.match(/(\d+(?:\.\d+)?)(SM)/);
+    const tempMatch = normalized.match(/\s(M?\d{2})\/(M?\d{2})\s/);
+    const altMatch = normalized.match(/\sA(\d{4})\b/);
+    const cloudsMatch = normalized.match(/\b(FEW|SCT|BKN|OVC)\d{3}\b/g);
+
+    const windDirection = windMatch ? (windMatch[1] === 'VRB' ? 0 : Number(windMatch[1])) : 0;
+    const windSpeed = windMatch ? Number(windMatch[2]) : 0;
+    const visibility = visMatch ? parseFloat(visMatch[1]) : 10;
+    const temperature = tempMatch ? Number(tempMatch[1].replace('M', '-')) : 15;
+    const dewPoint = tempMatch ? Number(tempMatch[2].replace('M', '-')) : Math.round(temperature - 5);
+    const pressure = altMatch ? Math.round((Number(altMatch[1]) / 100) * 100) / 100 : 30.0;
+    const cloudCoverage = cloudsMatch ? cloudsMatch.join(' ') : 'CLR';
+
+    return {
+      location: `${icao.toUpperCase()} Airport`,
+      temperature,
+      pressure,
+      humidity: 50,
+      windSpeed,
+      windDirection,
+      visibility,
+      cloudCoverage,
+      dewPoint,
+      conditions: determineFlightRules(visibility),
+      flightRules: determineFlightRules(visibility),
+      metar: raw,
+      lastUpdated: new Date().toISOString()
+    } as WeatherData[string];
+  };
+
   // Build a simple bounding box (in degrees) around a lat/lon
   const buildBbox = (lat: number, lon: number, delta: number) => {
     const west = lon - delta;
@@ -85,30 +118,77 @@ const determineFlightRules = (visibility: number, ceiling?: number): 'VFR' | 'MV
     return `${west},${south},${east},${north}`;
   };
 
-  // Fetch METAR via edge function proxy to AviationWeather.gov API
-  const fetchMETAR = async (
+  const fetchDirectAviationWeatherMETAR = async (
     icao: string
   ): Promise<{ raw: string; issued?: string; station?: string } | null> => {
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const res = await fetch(
-        `${supabaseUrl}/functions/v1/aviation-weather?type=metar&ids=${icao.toUpperCase()}`,
-        { headers: { 'Content-Type': 'application/json' } }
-      );
-      if (res.status === 200) {
-        const json = await res.json();
-        if (Array.isArray(json) && json.length > 0) {
-          const m = json[0];
-          return {
-            raw: m.rawOb || m.rawMETAR || m.rawMetar || m.metar || m.raw || m.text || '',
-            issued: m.obsTime || m.reportTime || m.bulletinTime || '',
-            station: m.icaoId || m.stationId || icao.toUpperCase(),
-          };
-        }
-      }
-      return null;
+      const url = `https://aviationweather.gov/adds/dataserver_current/httpparam?dataSource=metars&requestType=retrieve&format=JSON&stationString=${encodeURIComponent(icao.toUpperCase())}&hoursBeforeNow=2`;
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      const json = await res.json();
+      const metar = json?.METAR?.[0]?.raw_text || json?.data?.METAR?.[0]?.raw_text;
+      if (!metar) return null;
+      return {
+        raw: metar,
+        issued: json?.METAR?.[0]?.observation_time || json?.data?.METAR?.[0]?.observation_time || '',
+        station: json?.METAR?.[0]?.station_id || json?.data?.METAR?.[0]?.station_id || icao.toUpperCase(),
+      };
     } catch (e) {
-      console.warn('METAR fetch failed for', icao, e);
+      console.warn('Direct METAR fetch failed for', icao, e);
+      return null;
+    }
+  };
+
+  // Fetch METAR via edge function proxy to AviationWeather.gov API, falling back to direct AviationWeather.gov data if needed
+  const fetchMETAR = async (
+    icao: string
+  ): Promise<{ raw: string; issued?: string; station?: string } | null> => {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+
+    if (supabaseUrl) {
+      try {
+        const res = await fetch(
+          `${supabaseUrl}/functions/v1/aviation-weather?type=metar&ids=${icao.toUpperCase()}`,
+          { headers: { 'Content-Type': 'application/json' } }
+        );
+        if (res.status === 200) {
+          const json = await res.json();
+          if (Array.isArray(json) && json.length > 0) {
+            const m = json[0];
+            return {
+              raw: m.rawOb || m.rawMETAR || m.rawMetar || m.metar || m.raw || m.text || '',
+              issued: m.obsTime || m.reportTime || m.bulletinTime || '',
+              station: m.icaoId || m.stationId || icao.toUpperCase(),
+            };
+          }
+        }
+      } catch (e) {
+        console.warn('Proxy METAR fetch failed for', icao, e);
+      }
+    }
+
+    return fetchDirectAviationWeatherMETAR(icao);
+  };
+
+  const fetchDirectAviationWeatherTAF = async (
+    icao: string
+  ): Promise<{ raw: string; issued: string; station: string; lat?: number; lon?: number } | null> => {
+    try {
+      const url = `https://aviationweather.gov/adds/dataserver_current/httpparam?dataSource=tafs&requestType=retrieve&format=JSON&stationString=${encodeURIComponent(icao.toUpperCase())}&hoursBeforeNow=6`;
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      const json = await res.json();
+      const taf = json?.TAF?.[0]?.raw_text || json?.data?.TAF?.[0]?.raw_text;
+      if (!taf) return null;
+      return {
+        raw: taf,
+        issued: json?.TAF?.[0]?.issue_time || json?.data?.TAF?.[0]?.issue_time || '',
+        station: json?.TAF?.[0]?.station_id || json?.data?.TAF?.[0]?.station_id || icao.toUpperCase(),
+        lat: json?.TAF?.[0]?.latitude,
+        lon: json?.TAF?.[0]?.longitude,
+      };
+    } catch (e) {
+      console.warn('Direct TAF fetch failed for', icao, e);
       return null;
     }
   };
@@ -119,73 +199,78 @@ const determineFlightRules = (visibility: number, ceiling?: number): 'VFR' | 'MV
     lat?: number,
     lon?: number
   ): Promise<{ raw: string; issued: string; station: string; lat?: number; lon?: number } | null> => {
-    try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 
-      // Try exact station first
-      const byId = await fetch(
-        `${supabaseUrl}/functions/v1/aviation-weather?type=taf&ids=${icao.toUpperCase()}`,
-        { headers: { 'Content-Type': 'application/json' } }
-      );
-      if (byId.status === 200) {
-        const json = await byId.json();
-        if (Array.isArray(json) && json.length > 0) {
-          const t = json[0];
-          return {
-            raw: t.rawTAF || t.rawOb || t.taf || t.raw || '',
-            issued: t.issueTime || t.bulletinTime || '',
-            station: t.icaoId || icao.toUpperCase(),
-            lat: t.lat,
-            lon: t.lon,
-          };
-        }
-      }
-
-      // If no TAF for this airport, search nearest via bbox expanding outwards
-      if (lat != null && lon != null) {
-        for (const delta of [0.5, 1, 2, 3, 5]) {
-          const bbox = buildBbox(lat, lon, delta);
-          const byBox = await fetch(
-            `${supabaseUrl}/functions/v1/aviation-weather?type=taf&bbox=${bbox}`,
-            { headers: { 'Content-Type': 'application/json' } }
-          );
-          if (byBox.status === 200) {
-            const json = await byBox.json();
-            if (Array.isArray(json) && json.length > 0) {
-              // Pick nearest
-              const toRad = (d: number) => (d * Math.PI) / 180;
-              const R = 6371; // km
-              let best = json[0];
-              let bestDist = Number.POSITIVE_INFINITY;
-              json.forEach((t: any) => {
-                const tLat = t.lat ?? lat;
-                const tLon = t.lon ?? lon;
-                const dLat = toRad(tLat - lat);
-                const dLon = toRad(tLon - lon);
-                const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat)) * Math.cos(toRad(tLat)) * Math.sin(dLon / 2) ** 2;
-                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-                const dist = R * c;
-                if (dist < bestDist) {
-                  best = t;
-                  bestDist = dist;
-                }
-              });
-              return {
-                raw: best.rawTAF || best.rawOb || best.taf || best.raw || '',
-                issued: best.issueTime || best.bulletinTime || '',
-                station: best.icaoId || icao.toUpperCase(),
-                lat: best.lat,
-                lon: best.lon,
-              };
-            }
+    if (supabaseUrl) {
+      try {
+        const byId = await fetch(
+          `${supabaseUrl}/functions/v1/aviation-weather?type=taf&ids=${icao.toUpperCase()}`,
+          { headers: { 'Content-Type': 'application/json' } }
+        );
+        if (byId.status === 200) {
+          const json = await byId.json();
+          if (Array.isArray(json) && json.length > 0) {
+            const t = json[0];
+            return {
+              raw: t.rawTAF || t.rawOb || t.taf || t.raw || '',
+              issued: t.issueTime || t.bulletinTime || '',
+              station: t.icaoId || icao.toUpperCase(),
+              lat: t.lat,
+              lon: t.lon,
+            };
           }
         }
+      } catch (e) {
+        console.warn('Proxy TAF fetch failed for', icao, e);
       }
-      return null;
-    } catch (e) {
-      console.warn('TAF fetch failed for', icao, e);
-      return null;
     }
+
+    const exact = await fetchDirectAviationWeatherTAF(icao);
+    if (exact) return exact;
+
+    if (lat != null && lon != null) {
+      for (const delta of [0.5, 1, 2, 3, 5]) {
+        const bbox = buildBbox(lat, lon, delta);
+        try {
+          const byBox = await fetch(
+            `https://aviationweather.gov/adds/dataserver_current/httpparam?dataSource=tafs&requestType=retrieve&format=JSON&bbox=${encodeURIComponent(bbox)}&hoursBeforeNow=6`
+          );
+          if (!byBox.ok) continue;
+          const json = await byBox.json();
+          const items = json?.TAF || json?.data?.TAF;
+          if (Array.isArray(items) && items.length > 0) {
+            const toRad = (d: number) => (d * Math.PI) / 180;
+            const R = 6371;
+            let best = items[0];
+            let bestDist = Number.POSITIVE_INFINITY;
+            items.forEach((t: any) => {
+              const tLat = t.latitude ?? lat;
+              const tLon = t.longitude ?? lon;
+              const dLat = toRad(tLat - lat);
+              const dLon = toRad(tLon - lon);
+              const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat)) * Math.cos(toRad(tLat)) * Math.sin(dLon / 2) ** 2;
+              const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+              const dist = R * c;
+              if (dist < bestDist) {
+                best = t;
+                bestDist = dist;
+              }
+            });
+            return {
+              raw: best.raw_text || best.raw_taf || '',
+              issued: best.issue_time || '',
+              station: best.station_id || icao.toUpperCase(),
+              lat: best.latitude,
+              lon: best.longitude,
+            };
+          }
+        } catch (e) {
+          console.warn('Direct bbox TAF fetch failed for', icao, bbox, e);
+        }
+      }
+    }
+
+    return null;
   };
   const generateRealisticWeatherData = (code: string) => {
     const temp = Math.round(15 + Math.random() * 20);
@@ -233,81 +318,105 @@ const determineFlightRules = (visibility: number, ceiling?: number): 'VFR' | 'MV
 
     try {
       // Try National Weather Service API with properly encoded ICAO
-      const stationResponse = await fetch(`https://api.weather.gov/stations/${encodeURIComponent(sanitizedIcao)}`);
+      const stationResponse = await fetch(`https://api.weather.gov/stations/${encodeURIComponent(sanitizedIcao)}`, {
+        headers: { Accept: 'application/geo+json' }
+      });
       
+      let stationName = `${sanitizedIcao.toUpperCase()} Airport`;
+      let stationData: any = null;
+
       if (stationResponse.ok) {
-        const stationData = await stationResponse.json();
+        stationData = await stationResponse.json();
+        stationName = stationData.properties?.name || stationName;
+      }
+
+      const obsResponse = await fetch(`https://api.weather.gov/stations/${encodeURIComponent(sanitizedIcao)}/observations/latest`, {
+        headers: { Accept: 'application/geo+json' }
+      });
+
+      if (obsResponse.ok) {
+        const obsData = await obsResponse.json();
+        const obs = obsData.properties;
         
-        // Get current observations with properly encoded ICAO
-        const obsResponse = await fetch(`https://api.weather.gov/stations/${encodeURIComponent(sanitizedIcao)}/observations/latest`);
-        
-        if (obsResponse.ok) {
-          const obsData = await obsResponse.json();
-          const obs = obsData.properties;
-          
-          let weatherInfo = {
-            location: stationData.properties?.name || `${icaoCode.toUpperCase()} Airport`,
-            temperature: convertTemp(obs.temperature),
-            pressure: convertPressure(obs.barometricPressure),
-            humidity: Math.round(obs.relativeHumidity?.value || 50),
-            windSpeed: convertWindSpeed(obs.windSpeed),
-            windDirection: Math.round(obs.windDirection?.value || 0),
-            visibility: convertVisibility(obs.visibility),
-            cloudCoverage: obs.cloudLayers?.[0]?.amount || 'CLR',
-            dewPoint: convertTemp(obs.dewpoint),
-            conditions: determineFlightRules(convertVisibility(obs.visibility), obs.cloudLayers?.[0]?.base?.value),
-            flightRules: determineFlightRules(convertVisibility(obs.visibility), obs.cloudLayers?.[0]?.base?.value),
-            metar: obs.rawMessage || obs.textDescription || generateRealisticWeatherData(icaoCode).metar,
-            lastUpdated: obs.timestamp || new Date().toISOString()
-          } as WeatherData[string];
+        let weatherInfo = {
+          location: stationName,
+          temperature: convertTemp(obs.temperature),
+          pressure: convertPressure(obs.barometricPressure),
+          humidity: Math.round(obs.relativeHumidity?.value || 50),
+          windSpeed: convertWindSpeed(obs.windSpeed),
+          windDirection: Math.round(obs.windDirection?.value || 0),
+          visibility: convertVisibility(obs.visibility),
+          cloudCoverage: obs.cloudLayers?.[0]?.amount || 'CLR',
+          dewPoint: convertTemp(obs.dewpoint),
+          conditions: determineFlightRules(convertVisibility(obs.visibility), obs.cloudLayers?.[0]?.base?.value),
+          flightRules: determineFlightRules(convertVisibility(obs.visibility), obs.cloudLayers?.[0]?.base?.value),
+          metar: obs.rawMessage || obs.textDescription || generateRealisticWeatherData(icaoCode).metar,
+          lastUpdated: obs.timestamp || new Date().toISOString()
+        } as WeatherData[string];
 
-          // Attempt to fetch TAF and METAR concurrently
-          const coords = (stationData?.geometry?.coordinates || stationData?.properties?.geometry?.coordinates) as [number, number] | undefined;
-          const lon = Array.isArray(coords) ? coords[0] : undefined;
-          const lat = Array.isArray(coords) ? coords[1] : undefined;
+        // Attempt to fetch TAF and METAR concurrently
+        const coords = (stationData?.geometry?.coordinates || stationData?.properties?.geometry?.coordinates) as [number, number] | undefined;
+        const lon = Array.isArray(coords) ? coords[0] : undefined;
+        const lat = Array.isArray(coords) ? coords[1] : undefined;
 
-          // Validate coordinates before using them
-          const validCoords = lat !== undefined && lon !== undefined && validateCoordinates(lat, lon);
+        // Validate coordinates before using them
+        const validCoords = lat !== undefined && lon !== undefined && validateCoordinates(lat, lon);
 
-          const [taf, metar] = await Promise.all([
-            fetchTAFNearest(sanitizedIcao, validCoords ? lat : undefined, validCoords ? lon : undefined),
-            fetchMETAR(sanitizedIcao),
-          ]);
+        const [taf, metar] = await Promise.all([
+          fetchTAFNearest(sanitizedIcao, validCoords ? lat : undefined, validCoords ? lon : undefined),
+          fetchMETAR(sanitizedIcao),
+        ]);
 
-          if (metar && metar.raw) {
-            weatherInfo = {
-              ...weatherInfo,
-              metar: metar.raw,
-            };
-          }
-
-          if (taf && taf.raw) {
-            weatherInfo = {
-              ...weatherInfo,
-              tafRaw: taf.raw,
-              tafIssued: taf.issued,
-              tafStation: taf.station,
-              tafLat: taf.lat,
-              tafLon: taf.lon,
-            };
-          }
-
-          setWeatherData(prev => ({
-            ...prev,
-            [sanitizedIcao]: weatherInfo
-          }));
-
-          // Only notify for severe weather conditions (IFR/LIFR)
-          if (weatherInfo.flightRules === 'IFR' || weatherInfo.flightRules === 'LIFR') {
-            globalAddNotification?.({
-              title: `Weather Alert: ${sanitizedIcao}`,
-              description: `${weatherInfo.flightRules} conditions detected`,
-              type: 'warning'
-            });
-          }
-
-          return weatherInfo;
+        if (metar && metar.raw) {
+          weatherInfo = {
+            ...weatherInfo,
+            metar: metar.raw,
+          };
         }
+
+        if (taf && taf.raw) {
+          weatherInfo = {
+            ...weatherInfo,
+            tafRaw: taf.raw,
+            tafIssued: taf.issued,
+            tafStation: taf.station,
+            tafLat: taf.lat,
+            tafLon: taf.lon,
+          };
+        }
+
+        setWeatherData(prev => ({
+          ...prev,
+          [sanitizedIcao]: weatherInfo
+        }));
+
+        // Only notify for severe weather conditions (IFR/LIFR)
+        if (weatherInfo.flightRules === 'IFR' || weatherInfo.flightRules === 'LIFR') {
+          globalAddNotification?.({
+            title: `Weather Alert: ${sanitizedIcao}`,
+            description: `${weatherInfo.flightRules} conditions detected`,
+            type: 'warning'
+          });
+        }
+
+        return weatherInfo;
+      }
+
+      const metarFallback = await fetchMETAR(sanitizedIcao);
+      if (metarFallback?.raw) {
+        const parsedFallback = parseRawMETAR(metarFallback.raw, sanitizedIcao);
+        const fallbackWeatherInfo = {
+          ...parsedFallback,
+          location: stationName,
+          metar: metarFallback.raw,
+        };
+
+        setWeatherData(prev => ({
+          ...prev,
+          [sanitizedIcao]: fallbackWeatherInfo
+        }));
+
+        return fallbackWeatherInfo;
       }
       
       // Fallback to realistic simulated data (silent - no notification)
