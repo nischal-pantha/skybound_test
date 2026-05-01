@@ -120,8 +120,8 @@ export const ModernMainApp = () => {
               case 'utc-clock': return <UTCClock />;
               case 'aircraft-manager': return <AircraftManager />;
               case 'profile': return <Profile />;
-              case 'fuel-calculator': return <Performance />;
-              case 'frequencies': return <IntegratedFlightPlanning />;
+              case 'fuel-calculator': return <FuelCalculator />;
+              case 'frequencies': return <RadioFrequencies />;
               case 'flight-tracker': return <LiveFlightTracker />;
               case 'scheduling': return <FlightScheduling />;
               default: return <Dashboard onNavigate={handleSectionChange} />;
